@@ -96,11 +96,13 @@ function decryptResponse(encData, fixedAesKey) {
 
 /**
  * normalizePem — PKCS#1 or PKCS#8 RSA public key for node-forge.
- * Handles keys with spaces or newlines; strips quotes from .env.
+ * Handles keys with spaces, newlines, or literal \n; strips quotes from .env.
  */
 function normalizePem(pem) {
   if (!pem || typeof pem !== 'string') return null;
-  const trimmed = pem.trim().replace(/^["']|["']$/g, '');
+  let trimmed = pem.trim().replace(/^["']|["']$/g, '');
+  // Some deployments (PM2, systemd) pass literal backslash-n instead of newlines
+  trimmed = trimmed.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
   const formats = [
     ['-----BEGIN RSA PUBLIC KEY-----', '-----END RSA PUBLIC KEY-----'],
     ['-----BEGIN PUBLIC KEY-----', '-----END PUBLIC KEY-----'],
@@ -130,7 +132,10 @@ function encryptSessionCheck(payload, rsaPem) {
   }
   const pem = normalizePem(rsaPem);
   if (!pem) {
-    encryptSessionCheck.lastError = 'Invalid PEM format: expected -----BEGIN RSA PUBLIC KEY----- ... -----END RSA PUBLIC KEY-----';
+    const len = rsaPem.length;
+    const hasBegin = rsaPem.includes('-----BEGIN');
+    const hasEnd = rsaPem.includes('-----END');
+    encryptSessionCheck.lastError = `Invalid PEM format (len=${len}, hasBegin=${hasBegin}, hasEnd=${hasEnd}). Expected -----BEGIN RSA PUBLIC KEY----- ... -----END RSA PUBLIC KEY-----`;
     return null;
   }
   let publicKey;
