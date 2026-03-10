@@ -324,8 +324,8 @@ curl http://localhost:3009/account/balance -H "X-API-Key: sk_abc123..."
   "success": true,
   "data": {
     "balances": [
-      { "currencyId": 1, "currencyCode": "SYP", "balance": 150000 },
-      { "currencyId": 2, "currencyCode": "USD", "balance": 25.50 },
+      { "currencyId": 1, "currencyCode": "USD", "balance": 25.50 },
+      { "currencyId": 2, "currencyCode": "SYP", "balance": 150000 },
       { "currencyId": 3, "currencyCode": "EUR", "balance": 10.00 }
     ]
   }
@@ -457,7 +457,7 @@ Full transaction history (`Transaction/history-logs`). Uses minimal payload `{ a
 |-------|------|-------------|
 | `fromDate` | string | Start date filter |
 | `toDate` | string | End date filter |
-| `currencyId` | number | Filter by currency (1=SYP, 2=USD, 3=EUR) |
+| `currencyId` | number | Filter by currency (1=USD, 2=SYP, 3=EUR) |
 | `type` | number | Transaction type filter |
 
 *Note: `page`/`pageSize` cause empty results on the mobile API — omit them.*

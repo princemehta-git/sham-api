@@ -1,8 +1,8 @@
 /**
  * Maps Shamcash currencyId to currency code.
- * currencyId 1 = EUR, 2 = USD, 3 = SYP
+ * currencyId 1 = USD, 2 = SYP, 3 = EUR
  */
-const CURRENCY_ID_MAP = { 1: 'EUR', 2: 'USD', 3: 'SYP' };
+const CURRENCY_ID_MAP = { 1: 'USD', 2: 'SYP', 3: 'EUR' };
 
 function getCurrencyFromBalance(b, defaultVal = 'SYP') {
   return b.currencyName || b.currency || b.name ||

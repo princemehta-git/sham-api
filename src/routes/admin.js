@@ -389,7 +389,7 @@ function setupRoutes(app) {
       if (!creds) return res.status(404).json({ error: 'Account not found' });
       const clientCreds = buildCredsForClient(creds);
       const data = await shamcashClient.accountBalances(clientCreds);
-      // Populate currencyName from currencyId (1=EUR, 2=USD, 3=SYP) when empty
+      // Populate currencyName from currencyId (1=USD, 2=SYP, 3=EUR) when empty
       const balances = data?.data?.balances || data?.balances || [];
       if (Array.isArray(balances)) {
         for (const b of balances) {
