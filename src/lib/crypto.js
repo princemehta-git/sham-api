@@ -96,12 +96,11 @@ function decryptResponse(encData, fixedAesKey) {
 
 /**
  * normalizePem — PKCS#1 or PKCS#8 RSA public key for node-forge.
- * Handles keys with spaces, newlines, or literal \n; strips quotes from .env.
+ * Accepts: full PEM, or base64-only (no newlines — avoids PM2/systemd truncation).
  */
 function normalizePem(pem) {
   if (!pem || typeof pem !== 'string') return null;
   let trimmed = pem.trim().replace(/^["']|["']$/g, '');
-  // Some deployments (PM2, systemd) pass literal backslash-n instead of newlines
   trimmed = trimmed.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
   const formats = [
     ['-----BEGIN RSA PUBLIC KEY-----', '-----END RSA PUBLIC KEY-----'],
@@ -114,6 +113,12 @@ function normalizePem(pem) {
       const body64 = trimmed.slice(i + begin.length, j).trim().replace(/\s+/g, '').replace(/(.{64})/g, '$1\n').trim();
       return `${begin}\n${body64}\n${end}`;
     }
+  }
+  // Base64-only: no BEGIN/END (avoids truncation when env vars cut at newlines)
+  const b64 = trimmed.replace(/\s+/g, '');
+  if (/^[A-Za-z0-9+/=_-]+$/.test(b64) && b64.length >= 350) {
+    const body64 = b64.replace(/(.{64})/g, '$1\n').trim();
+    return `-----BEGIN RSA PUBLIC KEY-----\n${body64}\n-----END RSA PUBLIC KEY-----`;
   }
   return null;
 }
