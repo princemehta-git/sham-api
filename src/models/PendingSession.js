@@ -27,6 +27,10 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    account_name: {
+      type: DataTypes.STRING(256),
+      allowNull: true,
+    },
     created_at: {
       type: DataTypes.BIGINT,
       allowNull: false,

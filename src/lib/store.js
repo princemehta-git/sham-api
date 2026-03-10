@@ -52,6 +52,7 @@ async function createPendingSessionDB(data) {
     info_device: data.infoDevice || {},
     enc_payload: data.encPayload || null,
     aes_key_enc: data.aesKeyEnc || null,
+    account_name: data.accountName || null,
     created_at: Date.now(),
   });
   return id;
@@ -68,6 +69,7 @@ async function getPendingSessionDB(sessionId) {
     createdAt: Number(row.created_at),
     encPayload: row.enc_payload,
     aesKeyEnc: row.aes_key_enc,
+    accountName: row.account_name || null,
   };
 }
 

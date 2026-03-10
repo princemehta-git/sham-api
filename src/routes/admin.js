@@ -191,7 +191,11 @@ async function runBackgroundCheck(sessionId) {
         infoDevice: session.infoDevice,
       };
 
-      completedSessions.set(sessionId, { credentials, createdAt: Date.now() });
+      completedSessions.set(sessionId, {
+        credentials,
+        createdAt: Date.now(),
+        accountName: session.accountName || null,
+      });
       await store.deletePendingSession(sessionId);
       consecutiveErrors.delete(sessionId);
       const tid = backgroundPollIntervals.get(sessionId);
@@ -256,6 +260,8 @@ function setupRoutes(app) {
         return res.status(500).json({ error: 'Missing SHAMCASH_AES_KEY or SHAMCASH_SERVER_PUBLIC_KEY in .env' });
       }
 
+      const accountName = (req.body?.name || '').trim() || null;
+
       const deviceContext = device.generateDeviceContext();
       const infoDeviceForQr = {
         deviceName: 'Media-Man-Bot',
@@ -290,6 +296,7 @@ function setupRoutes(app) {
         infoDevice: infoDeviceStored,
         encPayload: encPayload.encData,
         aesKeyEnc: encPayload.aesKey,
+        accountName,
       });
 
       startBackgroundPolling(encryptedSessionId);
@@ -320,13 +327,14 @@ function setupRoutes(app) {
           return res.status(500).json({ error: 'Could not fetch account address after login' });
         }
 
-        const name = await fetchAccountName(completed.credentials);
+        const shamcashName = await fetchAccountName(completed.credentials);
+        const displayName = completed.accountName || shamcashName || 'unknown';
         await store.createAccount(address, {
           credentials: completed.credentials,
-          name,
+          name: displayName,
           email: completed.credentials.email || null,
           sessionId,
-          label: name || address,
+          label: displayName,
         });
 
         completedSessions.delete(sessionId);
@@ -334,7 +342,7 @@ function setupRoutes(app) {
           success: true,
           loggedIn: true,
           account_address: address,
-          name,
+          name: displayName,
           message: 'Account linked successfully.',
         });
       } catch (e) {

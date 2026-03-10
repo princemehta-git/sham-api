@@ -303,8 +303,13 @@
       <div class="qr-container" id="qrContainer">
         <h2>Add New ShamCash Account</h2>
         <p style="color:#94a3b8;font-size:14px;text-align:center;max-width:400px;">
-          Click the button below to generate a QR code, then scan it with your ShamCash app to link the account.
+          Enter a name to remember this account, then generate a QR code and scan it with your ShamCash app.
         </p>
+        <div style="margin-bottom:16px;width:100%;max-width:320px;">
+          <label for="accountNameInput" style="display:block;font-size:13px;color:#94a3b8;margin-bottom:6px;">Account name (optional)</label>
+          <input type="text" id="accountNameInput" placeholder="e.g. Personal, Business, Main..."
+            style="width:100%;padding:10px 14px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-size:14px;outline:none;box-sizing:border-box;">
+        </div>
         <button class="btn btn-primary" id="generateQrBtn" onclick="generateQr()">Generate QR Code</button>
         <div id="qrDisplay" style="display:none;">
           <img id="qrImage" alt="QR Code" width="300" height="300">
@@ -455,18 +460,20 @@
           container.innerHTML = '<div class="empty-state"><h3>No accounts linked</h3><p>Click "Add New Account" to get started.</p></div>';
           return;
         }
-        container.innerHTML = data.accounts.map(a => `
+        container.innerHTML = data.accounts.map(a => {
+          const displayName = a.name || a.label || 'unknown';
+          return `
           <div class="account-card">
             <div class="account-header">
               <div>
-                <div class="account-name">${esc(a.name || a.label || 'Unnamed Account')}</div>
+                <div class="account-name">${esc(displayName)}</div>
+                <div class="account-address-row">
+                  <span style="flex:1;">${esc(a.account_address)}</span>
+                  <button class="copy-btn" onclick="copyAddress('${esc(a.account_address)}')" title="Copy address">&#128203;</button>
+                </div>
                 ${a.email ? `<div class="account-email">${esc(a.email)}</div>` : ''}
                 <div class="account-date">Added: ${new Date(a.created_at).toLocaleString()}</div>
               </div>
-            </div>
-            <div class="account-address-row">
-              <span style="flex:1;">${esc(a.account_address)}</span>
-              <button class="copy-btn" onclick="copyAddress('${esc(a.account_address)}')" title="Copy address">&#128203;</button>
             </div>
             <div class="account-actions">
               <div class="action-group">
@@ -484,7 +491,8 @@
               <button class="btn btn-danger btn-sm" onclick="showDeleteConfirm('${esc(a.account_address)}')">Delete</button>
             </div>
           </div>
-        `).join('');
+        `;
+        }).join('');
       } catch (e) {
         container.innerHTML = '<div class="empty-state"><h3>Error loading accounts</h3><p>' + esc(e.message) + '</p></div>';
       }
@@ -500,7 +508,13 @@
       document.getElementById('successCard').style.display = 'none';
 
       try {
-        const res = await apiFetch('/admin/api/session/create', { method: 'POST' });
+        const nameInput = document.getElementById('accountNameInput');
+        const accountName = (nameInput?.value || '').trim() || undefined;
+        const res = await apiFetch('/admin/api/session/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: accountName }),
+        });
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
 
@@ -546,6 +560,7 @@
           document.getElementById('successMessage').textContent =
             (data.name ? data.name + ' - ' : '') + data.account_address;
 
+          loadAccounts();
           document.getElementById('generateQrBtn').style.display = '';
           document.getElementById('generateQrBtn').disabled = false;
           currentSessionId = null;
