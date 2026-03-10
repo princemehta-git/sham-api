@@ -279,9 +279,7 @@ function setupRoutes(app) {
       const sessionCheckPlaintext = { accessToken: '', sessionId: rawSessionId };
       const encPayload = crypto.encryptSessionCheck(sessionCheckPlaintext, SERVER_PUBLIC_KEY);
       if (!encPayload) {
-        const detail = crypto.encryptSessionCheck.lastError || 'unknown';
-        console.error('[admin/session/create] encryptSessionCheck failed:', detail);
-        return res.status(500).json({ error: 'Session/check encryption failed', detail });
+        return res.status(500).json({ error: 'Session/check encryption failed' });
       }
 
       await store.createPendingSession({

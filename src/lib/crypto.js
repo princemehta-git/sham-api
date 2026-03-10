@@ -95,75 +95,38 @@ function decryptResponse(encData, fixedAesKey) {
 }
 
 /**
- * normalizePem — PKCS#1 or PKCS#8 RSA public key for node-forge.
- * Accepts: full PEM, or base64-only (no newlines — avoids PM2/systemd truncation).
+ * normalizePem — PKCS#1 RSA public key for node-forge.
  */
 function normalizePem(pem) {
   if (!pem || typeof pem !== 'string') return null;
-  let trimmed = pem.trim().replace(/^["']|["']$/g, '');
-  trimmed = trimmed.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
-  const formats = [
-    ['-----BEGIN RSA PUBLIC KEY-----', '-----END RSA PUBLIC KEY-----'],
-    ['-----BEGIN PUBLIC KEY-----', '-----END PUBLIC KEY-----'],
-  ];
-  for (const [begin, end] of formats) {
-    const i = trimmed.indexOf(begin);
-    const j = trimmed.indexOf(end);
-    if (i !== -1 && j !== -1 && j > i) {
-      const body64 = trimmed.slice(i + begin.length, j).trim().replace(/\s+/g, '').replace(/(.{64})/g, '$1\n').trim();
-      return `${begin}\n${body64}\n${end}`;
-    }
-  }
-  // Base64-only: no BEGIN/END (avoids truncation when env vars cut at newlines)
-  const b64 = trimmed.replace(/\s+/g, '');
-  if (/^[A-Za-z0-9+/=_-]+$/.test(b64) && b64.length >= 350) {
-    const body64 = b64.replace(/(.{64})/g, '$1\n').trim();
-    return `-----BEGIN RSA PUBLIC KEY-----\n${body64}\n-----END RSA PUBLIC KEY-----`;
-  }
-  return null;
+  const trimmed = pem.trim().replace(/^["']|["']$/g, '');
+  const begin = '-----BEGIN RSA PUBLIC KEY-----';
+  const end   = '-----END RSA PUBLIC KEY-----';
+  const i = trimmed.indexOf(begin);
+  const j = trimmed.indexOf(end);
+  if (i === -1 || j === -1 || j <= i) return null;
+  const body64 = trimmed.slice(i + begin.length, j).trim().replace(/\s+/g, '').replace(/(.{64})/g, '$1\n').trim();
+  return `${begin}\n${body64}\n${end}`;
 }
 
 /**
  * encryptSessionCheck(payload, rsaPem) — yv() function.
  * Used for Session/create: random zo() key + RSA-PKCS1-V1_5.
  * Returns { encData, aesKey } or null.
- * On failure, sets encryptSessionCheck.lastError for diagnostics.
  */
 function encryptSessionCheck(payload, rsaPem) {
-  encryptSessionCheck.lastError = null;
-  if (!payload || !rsaPem) {
-    encryptSessionCheck.lastError = !rsaPem ? 'SHAMCASH_SERVER_PUBLIC_KEY is empty' : 'payload is empty';
-    return null;
-  }
+  if (!payload || !rsaPem) return null;
   const pem = normalizePem(rsaPem);
-  if (!pem) {
-    const len = rsaPem.length;
-    const hasBegin = rsaPem.includes('-----BEGIN');
-    const hasEnd = rsaPem.includes('-----END');
-    encryptSessionCheck.lastError = `Invalid PEM format (len=${len}, hasBegin=${hasBegin}, hasEnd=${hasEnd}). Expected -----BEGIN RSA PUBLIC KEY----- ... -----END RSA PUBLIC KEY-----`;
-    return null;
-  }
   let publicKey;
-  try {
-    publicKey = forge.pki.publicKeyFromPem(pem);
-  } catch (e) {
-    encryptSessionCheck.lastError = `RSA key parse failed: ${e.message}`;
-    return null;
-  }
+  try { publicKey = forge.pki.publicKeyFromPem(pem); } catch { return null; }
   const json      = JSON.stringify(payload);
   const aesKeyStr = zo();
   const encData   = ef(json, aesKeyStr);
-  if (!encData) {
-    encryptSessionCheck.lastError = 'AES encryption failed';
-    return null;
-  }
+  if (!encData) return null;
   let aesKeyB64;
   try {
     aesKeyB64 = forge.util.encode64(publicKey.encrypt(aesKeyStr, 'RSAES-PKCS1-V1_5'));
-  } catch (e) {
-    encryptSessionCheck.lastError = `RSA encrypt failed: ${e.message}`;
-    return null;
-  }
+  } catch { return null; }
   return { encData, aesKey: aesKeyB64 };
 }
 
