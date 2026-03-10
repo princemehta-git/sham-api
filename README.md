@@ -32,6 +32,7 @@ For **persistent sessions** across restarts, set `USE_MEMORY=false` and configur
 ```env
 USE_MEMORY=false
 MYSQL_HOST=localhost
+MYSQL_PORT=3306
 MYSQL_USER=root
 MYSQL_PASSWORD=yourpassword
 MYSQL_DATABASE=shamcash_api
@@ -602,6 +603,7 @@ All errors follow this format:
 | `PORT` | `3000` | Server port |
 | `USE_MEMORY` | `false` | `true` = RAM only (no MySQL) |
 | `MYSQL_HOST` | `localhost` | MySQL host |
+| `MYSQL_PORT` | `3306` | MySQL port |
 | `MYSQL_USER` | `root` | MySQL user |
 | `MYSQL_PASSWORD` | *(empty)* | MySQL password |
 | `MYSQL_DATABASE` | `shamcash_api` | MySQL database |

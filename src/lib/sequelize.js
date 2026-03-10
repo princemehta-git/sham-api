@@ -6,6 +6,7 @@
 const { Sequelize } = require('sequelize');
 
 const MYSQL_HOST = process.env.MYSQL_HOST || 'localhost';
+const MYSQL_PORT = parseInt(process.env.MYSQL_PORT || '3306', 10);
 const MYSQL_USER = process.env.MYSQL_USER || 'root';
 const MYSQL_PASSWORD = process.env.MYSQL_PASSWORD || '';
 const MYSQL_DATABASE = process.env.MYSQL_DATABASE || 'shamcash_api';
@@ -16,6 +17,7 @@ async function init() {
   // Create database if not exists using a temporary connection
   const tempSeq = new Sequelize('', MYSQL_USER, MYSQL_PASSWORD, {
     host: MYSQL_HOST,
+    port: MYSQL_PORT,
     dialect: 'mysql',
     logging: false,
   });
@@ -25,6 +27,7 @@ async function init() {
   // Connect to the actual database
   sequelize = new Sequelize(MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, {
     host: MYSQL_HOST,
+    port: MYSQL_PORT,
     dialect: 'mysql',
     logging: false,
     pool: { max: 10, min: 0, acquire: 30000, idle: 10000 },
