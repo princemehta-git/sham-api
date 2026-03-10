@@ -8,6 +8,7 @@ const QRCode = require('qrcode');
 const crypto = require('../lib/crypto');
 const device = require('../lib/device');
 const store = require('../lib/store');
+const { CURRENCY_ID_MAP } = require('../lib/currency');
 const shamcashClient = require('../lib/shamcashClient');
 const { generateToken, requireAdmin } = require('../middleware/adminAuth');
 
@@ -388,6 +389,15 @@ function setupRoutes(app) {
       if (!creds) return res.status(404).json({ error: 'Account not found' });
       const clientCreds = buildCredsForClient(creds);
       const data = await shamcashClient.accountBalances(clientCreds);
+      // Populate currencyName from currencyId (1=EUR, 2=USD, 3=SYP) when empty
+      const balances = data?.data?.balances || data?.balances || [];
+      if (Array.isArray(balances)) {
+        for (const b of balances) {
+          if (!b.currencyName && b.currencyId != null && CURRENCY_ID_MAP[b.currencyId]) {
+            b.currencyName = CURRENCY_ID_MAP[b.currencyId];
+          }
+        }
+      }
       res.json({ success: true, data });
     } catch (e) {
       res.status(e.status || 500).json({ error: e.message });
@@ -413,12 +423,18 @@ function setupRoutes(app) {
       const { tx } = req.query;
       if (!tx) return res.status(400).json({ success: false, error: 'tx parameter is required.' });
       const creds = await store.getAccountCredentials(req.params.address);
-      if (!creds) return res.status(404).json({ error: 'Account not found' });
+      if (!creds) return res.status(404).json({ success: false, error: 'Account not found' });
       const clientCreds = buildCredsForClient(creds);
-      const data = await shamcashClient.transactionById(clientCreds, tx);
-      res.json({ success: true, data });
+      try {
+        const data = await shamcashClient.transactionById(clientCreds, tx);
+        res.json({ success: true, data });
+      } catch (txErr) {
+        // transactionById throws 404 when not found — return null data, not a server error
+        if (txErr.status === 404) return res.json({ success: true, data: null });
+        throw txErr;
+      }
     } catch (e) {
-      res.status(e.status || 500).json({ error: e.message });
+      res.status(e.status || 500).json({ success: false, error: e.message });
     }
   });
 

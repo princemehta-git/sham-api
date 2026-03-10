@@ -11,6 +11,7 @@
 
 const store = require('../lib/store');
 const shamcashClient = require('../lib/shamcashClient');
+const { getCurrencyFromBalance } = require('../lib/currency');
 
 const API_KEY = process.env.API_KEY || '';
 
@@ -62,16 +63,29 @@ function setupRoutes(app) {
         case 'logs': {
           const data = await shamcashClient.transactionHistoryLogs(creds, {});
           const logs = Array.isArray(data?.data) ? data.data : (data?.data?.log || []);
-          const items = logs.map(t => ({
-            tran_id: String(t.tranId || t.id || ''),
-            from_name: t.fromName || t.from_name || t.senderName || '',
-            to_name: t.toName || t.to_name || t.receiverName || '',
-            currency: t.currencyName || t.currency || 'SYP',
-            amount: t.amount || 0,
-            datetime: t.dateTime || t.datetime || t.date || '',
-            account: account_address,
-            note: t.note || t.description || '',
-          }));
+          const fmtFromTo = (t) => {
+            const account = t.userName || t.accountNumber || '';
+            const peer = t.peerUserName || t.peerAccountNumber || '';
+            const isOutgoing = t.tranKind === 2;
+            return { from: isOutgoing ? account : peer, to: isOutgoing ? peer : account };
+          };
+          const fmtDateTime = (t) => {
+            if (t.tranDate && t.tranTime) return t.tranDate + ' ' + t.tranTime;
+            return t.dateTime || t.datetime || t.tranDate || t.tranTime || t.date || '';
+          };
+          const items = logs.map(t => {
+            const { from, to } = fmtFromTo(t);
+            return {
+              tran_id: Number(t.tranId || t.id) || 0,
+              from_name: from,
+              to_name: to,
+              currency: t.currencyName || t.currency || 'SYP',
+              amount: Number(t.amount) || 0,
+              datetime: fmtDateTime(t),
+              account: t.peerAccountAddress || '',
+              note: t.note || t.description || '',
+            };
+          });
           return res.json({
             success: true,
             data: { account_address, items },
@@ -85,7 +99,7 @@ function setupRoutes(app) {
           let balances;
           if (Array.isArray(rawBalances)) {
             balances = rawBalances.map(b => ({
-              currency: b.currencyName || b.currency || b.name || 'SYP',
+              currency: getCurrencyFromBalance(b),
               balance: b.balance ?? b.amount ?? 0,
             }));
           } else if (typeof rawBalances === 'object') {
@@ -113,18 +127,22 @@ function setupRoutes(app) {
           try {
             const result = await shamcashClient.transactionById(creds, tx);
             const t = result?.data || result;
+            const isOutgoing = t.tranKind === 2;
+            const from = isOutgoing ? (t.userName || t.accountNumber || '') : (t.peerUserName || t.peerAccountNumber || '');
+            const to = isOutgoing ? (t.peerUserName || t.peerAccountNumber || '') : (t.userName || t.accountNumber || '');
+            const datetime = (t.tranDate && t.tranTime) ? t.tranDate + ' ' + t.tranTime : (t.dateTime || t.datetime || t.tranDate || t.tranTime || t.date || '');
             return res.json({
               success: true,
               data: {
                 found: true,
                 transaction: {
-                  tran_id: String(t.tranId || t.id || tx),
-                  from_name: t.fromName || t.from_name || t.senderName || '',
-                  to_name: t.toName || t.to_name || t.receiverName || '',
+                  tran_id: Number(t.tranId || t.id || tx) || 0,
+                  from_name: from,
+                  to_name: to,
                   currency: t.currencyName || t.currency || 'SYP',
-                  amount: t.amount || 0,
-                  datetime: t.dateTime || t.datetime || t.date || '',
-                  account: account_address,
+                  amount: Number(t.amount) || 0,
+                  datetime,
+                  account: t.peerAccountAddress || '',
                   note: t.note || t.description || '',
                 },
                 account: { account_address },
@@ -134,7 +152,11 @@ function setupRoutes(app) {
             if (e.status === 404) {
               return res.json({
                 success: true,
-                data: { found: false, tran_id: tx },
+                data: {
+                  found: false,
+                  tran_id: Number(tx) || tx,
+                  account: { account_address },
+                },
               });
             }
             throw e;

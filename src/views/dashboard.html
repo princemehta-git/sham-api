@@ -571,12 +571,14 @@
         if (!data.success) throw new Error(data.error);
         const rawData = data.data;
         let balances = rawData?.data?.balances || rawData?.data || rawData?.balances || [];
+        const currencyIdMap = { 1: 'EUR', 2: 'USD', 3: 'SYP' };
+        const getCurrency = (b) => b.currencyName || b.currency || b.name || (b.currencyId != null ? currencyIdMap[b.currencyId] : null) || '?';
         if (Array.isArray(balances) && balances.length > 0) {
           document.getElementById('balanceContent').innerHTML = `
             <ul class="balance-list">
               ${balances.map(b => `
                 <li class="balance-item">
-                  <span class="balance-currency">${esc(b.currencyName || b.currency || b.name || '?')}</span>
+                  <span class="balance-currency">${esc(getCurrency(b))}</span>
                   <span class="balance-amount">${Number(b.balance ?? b.amount ?? 0).toLocaleString()}</span>
                 </li>
               `).join('')}
