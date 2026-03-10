@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShamCash Admin - Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+    .header {
+      background: #1e293b;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #334155;
+    }
+    .header h1 { font-size: 20px; color: #f1f5f9; }
+    .header .user-info { display: flex; align-items: center; gap: 12px; }
+    .header .user-info span { color: #94a3b8; font-size: 14px; }
+    .btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-secondary { background: #334155; color: #e2e8f0; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 4px;
+    }
+    .tab {
+      padding: 10px 20px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .tab.active { background: #3b82f6; color: #fff; }
+    .tab:hover:not(.active) { color: #e2e8f0; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    /* ── Add Account Panel ─────────────────────────────────── */
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 40px;
+      background: #1e293b;
+      border-radius: 12px;
+    }
+    .qr-container img {
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+    }
+    .qr-status {
+      font-size: 14px;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .qr-status .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f59e0b;
+      animation: pulse 1.5s infinite;
+    }
+    .qr-status.success .dot { background: #22c55e; animation: none; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .success-card {
+      background: #064e3b;
+      border: 1px solid #059669;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      display: none;
+    }
+    .success-card h3 { color: #6ee7b7; margin-bottom: 8px; }
+    .success-card p { color: #a7f3d0; font-size: 14px; }
+
+    /* ── Accounts List ─────────────────────────────────────── */
+    .account-card {
+      background: #1e293b;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 12px;
+      border: 1px solid #334155;
+    }
+    .account-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .account-name { font-size: 16px; font-weight: 600; color: #f1f5f9; }
+    .account-email { font-size: 13px; color: #94a3b8; margin-top: 2px; }
+    .account-date { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .account-address-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #0f172a;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #38bdf8;
+    }
+    .account-address-row .copy-btn {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color 0.2s;
+    }
+    .account-address-row .copy-btn:hover { color: #e2e8f0; }
+    .account-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #64748b;
+    }
+    .empty-state h3 { color: #94a3b8; margin-bottom: 8px; }
+
+    /* ── Modal ──────────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 700px;
+      max-height: 80vh;
+      overflow-y: auto;
+      position: relative;
+    }
+    .modal h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: #f1f5f9;
+    }
+    .modal-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    .modal-close:hover { color: #e2e8f0; }
+
+    .balance-list { list-style: none; }
+    .balance-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #334155;
+      font-size: 15px;
+    }
+    .balance-item:last-child { border-bottom: none; }
+    .balance-currency { font-weight: 600; }
+    .balance-amount { color: #22c55e; font-weight: 600; }
+
+    .tx-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .tx-table th {
+      text-align: left;
+      padding: 8px 10px;
+      color: #94a3b8;
+      font-weight: 500;
+      border-bottom: 1px solid #334155;
+      white-space: nowrap;
+    }
+    .tx-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #1e293b;
+      color: #cbd5e1;
+    }
+    .tx-table tr:hover td { background: #1e293b; }
+    .loading { text-align: center; padding: 30px; color: #94a3b8; }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #22c55e;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 2000;
+      display: none;
+      animation: fadeIn 0.3s;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>ShamCash Admin</h1>
+    <div class="user-info">
+      <span id="usernameDisplay"></span>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('accounts')">Linked Accounts</button>
+      <button class="tab" onclick="switchTab('add')">Add New Account</button>
+    </div>
+
+    <!-- ── Linked Accounts Panel ──────────────────────────────── -->
+    <div class="panel active" id="panel-accounts">
+      <div id="accountsList"></div>
+    </div>
+
+    <!-- ── Add Account Panel ──────────────────────────────────── -->
+    <div class="panel" id="panel-add">
+      <div class="qr-container" id="qrContainer">
+        <h2>Add New ShamCash Account</h2>
+        <p style="color:#94a3b8;font-size:14px;text-align:center;max-width:400px;">
+          Click the button below to generate a QR code, then scan it with your ShamCash app to link the account.
+        </p>
+        <button class="btn btn-primary" id="generateQrBtn" onclick="generateQr()">Generate QR Code</button>
+        <div id="qrDisplay" style="display:none;">
+          <img id="qrImage" alt="QR Code" width="300" height="300">
+          <div class="qr-status" id="qrStatus">
+            <div class="dot"></div>
+            <span>Waiting for scan...</span>
+          </div>
+        </div>
+        <div class="success-card" id="successCard">
+          <h3>Account Linked Successfully!</h3>
+          <p id="successMessage"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Balance Modal ─────────────────────────────────────────── -->
+  <div class="modal-overlay" id="balanceModal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeModal('balanceModal')">&times;</button>
+      <h2>Account Balance</h2>
+      <div id="balanceContent" class="loading">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ── Transactions Modal ────────────────────────────────────── -->
+  <div class="modal-overlay" id="txModal">
+    <div class="modal" style="max-width:900px;">
+      <button class="modal-close" onclick="closeModal('txModal')">&times;</button>
+      <h2>Transaction History</h2>
+      <div id="txContent" class="loading">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ── Delete Confirm Modal ──────────────────────────────────── -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal" style="max-width:400px;text-align:center;">
+      <h2>Delete Account?</h2>
+      <p style="color:#94a3b8;font-size:14px;margin-bottom:20px;">
+        This will soft-delete the account. It won't log out of ShamCash.
+      </p>
+      <p style="font-family:monospace;color:#f59e0b;margin-bottom:20px;font-size:13px;" id="deleteAddress"></p>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+        <button class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const TOKEN = localStorage.getItem('admin_token');
+    if (!TOKEN) window.location.href = '/admin';
+
+    let currentDeleteAddress = null;
+    let pollTimer = null;
+    let currentSessionId = null;
+
+    // ── Auth helper ─────────────────────────────────────────────
+    function authHeaders() {
+      return { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+    }
+
+    async function apiFetch(url, opts = {}) {
+      const res = await fetch(url, { ...opts, headers: { ...authHeaders(), ...(opts.headers || {}) } });
+      if (res.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.href = '/admin';
+        throw new Error('Session expired');
+      }
+      return res;
+    }
+
+    // ── Init ────────────────────────────────────────────────────
+    (async () => {
+      try {
+        const res = await apiFetch('/admin/api/me');
+        const data = await res.json();
+        document.getElementById('usernameDisplay').textContent = data.username || 'Admin';
+      } catch {
+        window.location.href = '/admin';
+        return;
+      }
+      loadAccounts();
+    })();
+
+    // ── Tabs ────────────────────────────────────────────────────
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach((t, i) => {
+        t.classList.toggle('active', (tab === 'accounts' && i === 0) || (tab === 'add' && i === 1));
+      });
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('panel-' + tab).classList.add('active');
+      if (tab === 'accounts') loadAccounts();
+    }
+
+    // ── Toast ───────────────────────────────────────────────────
+    function showToast(msg, color = '#22c55e') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.background = color;
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 3000);
+    }
+
+    // ── Copy ────────────────────────────────────────────────────
+    function copyAddress(addr) {
+      navigator.clipboard.writeText(addr);
+      showToast('Address copied!');
+    }
+
+    // ── Modal ───────────────────────────────────────────────────
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    // ── Load Accounts ───────────────────────────────────────────
+    async function loadAccounts() {
+      const container = document.getElementById('accountsList');
+      try {
+        const res = await apiFetch('/admin/api/accounts');
+        const data = await res.json();
+        if (!data.accounts || data.accounts.length === 0) {
+          container.innerHTML = '<div class="empty-state"><h3>No accounts linked</h3><p>Click "Add New Account" to get started.</p></div>';
+          return;
+        }
+        container.innerHTML = data.accounts.map(a => `
+          <div class="account-card">
+            <div class="account-header">
+              <div>
+                <div class="account-name">${esc(a.name || a.label || 'Unnamed Account')}</div>
+                ${a.email ? `<div class="account-email">${esc(a.email)}</div>` : ''}
+                <div class="account-date">Added: ${new Date(a.created_at).toLocaleString()}</div>
+              </div>
+            </div>
+            <div class="account-address-row">
+              <span style="flex:1;">${esc(a.account_address)}</span>
+              <button class="copy-btn" onclick="copyAddress('${esc(a.account_address)}')" title="Copy address">&#128203;</button>
+            </div>
+            <div class="account-actions">
+              <button class="btn btn-primary btn-sm" onclick="showBalance('${esc(a.account_address)}')">Balance</button>
+              <button class="btn btn-secondary btn-sm" onclick="showTransactions('${esc(a.account_address)}')">Transactions</button>
+              <button class="btn btn-danger btn-sm" onclick="showDeleteConfirm('${esc(a.account_address)}')">Delete</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        container.innerHTML = '<div class="empty-state"><h3>Error loading accounts</h3><p>' + esc(e.message) + '</p></div>';
+      }
+    }
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    // ── Generate QR ─────────────────────────────────────────────
+    async function generateQr() {
+      const btn = document.getElementById('generateQrBtn');
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+      document.getElementById('successCard').style.display = 'none';
+
+      try {
+        const res = await apiFetch('/admin/api/session/create', { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        currentSessionId = data.sessionId;
+        document.getElementById('qrImage').src = data.qrImage;
+        document.getElementById('qrDisplay').style.display = 'flex';
+        document.getElementById('qrDisplay').style.flexDirection = 'column';
+        document.getElementById('qrDisplay').style.alignItems = 'center';
+        document.getElementById('qrDisplay').style.gap = '16px';
+        const statusEl = document.getElementById('qrStatus');
+        statusEl.className = 'qr-status';
+        statusEl.innerHTML = '<div class="dot"></div><span>Waiting for scan...</span>';
+        btn.style.display = 'none';
+
+        // Start polling
+        pollTimer = setInterval(() => pollSession(), 3000);
+      } catch (e) {
+        showToast('Error: ' + e.message, '#dc2626');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Generate QR Code';
+      }
+    }
+
+    async function pollSession() {
+      if (!currentSessionId) return;
+      try {
+        const res = await apiFetch('/admin/api/session/' + encodeURIComponent(currentSessionId) + '/check');
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Session check failed');
+        }
+        if (data.loggedIn) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+          const statusEl = document.getElementById('qrStatus');
+          statusEl.className = 'qr-status success';
+          statusEl.innerHTML = '<div class="dot"></div><span>Account linked!</span>';
+
+          document.getElementById('qrDisplay').style.display = 'none';
+          const card = document.getElementById('successCard');
+          card.style.display = 'block';
+          document.getElementById('successMessage').textContent =
+            (data.name ? data.name + ' - ' : '') + data.account_address;
+
+          document.getElementById('generateQrBtn').style.display = '';
+          document.getElementById('generateQrBtn').disabled = false;
+          currentSessionId = null;
+        }
+      } catch (e) {
+        // Session expired, not found, or network error — stop polling
+        clearInterval(pollTimer);
+        pollTimer = null;
+        currentSessionId = null;
+        document.getElementById('qrStatus').innerHTML = '<span style="color:#f87171;">Session expired. Generate a new QR.</span>';
+        document.getElementById('generateQrBtn').style.display = '';
+        document.getElementById('generateQrBtn').disabled = false;
+      }
+    }
+
+    // ── Balance ─────────────────────────────────────────────────
+    async function showBalance(address) {
+      document.getElementById('balanceModal').classList.add('active');
+      document.getElementById('balanceContent').innerHTML = '<div class="loading">Loading balances...</div>';
+      try {
+        const res = await apiFetch('/admin/api/accounts/' + encodeURIComponent(address) + '/balance');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        const rawData = data.data;
+        let balances = rawData?.data?.balances || rawData?.data || rawData?.balances || [];
+        if (Array.isArray(balances) && balances.length > 0) {
+          document.getElementById('balanceContent').innerHTML = `
+            <ul class="balance-list">
+              ${balances.map(b => `
+                <li class="balance-item">
+                  <span class="balance-currency">${esc(b.currencyName || b.currency || b.name || '?')}</span>
+                  <span class="balance-amount">${Number(b.balance ?? b.amount ?? 0).toLocaleString()}</span>
+                </li>
+              `).join('')}
+            </ul>`;
+        } else {
+          document.getElementById('balanceContent').innerHTML = '<p style="text-align:center;color:#94a3b8;">No balance data available.</p>';
+        }
+      } catch (e) {
+        document.getElementById('balanceContent').innerHTML = '<p style="color:#f87171;">Error: ' + esc(e.message) + '</p>';
+      }
+    }
+
+    // ── Transactions ────────────────────────────────────────────
+    async function showTransactions(address) {
+      document.getElementById('txModal').classList.add('active');
+      document.getElementById('txContent').innerHTML = '<div class="loading">Loading transactions...</div>';
+      try {
+        const res = await apiFetch('/admin/api/accounts/' + encodeURIComponent(address) + '/transactions');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        const rawData = data.data;
+        const logs = Array.isArray(rawData?.data) ? rawData.data : (rawData?.data?.log || []);
+        if (logs.length === 0) {
+          document.getElementById('txContent').innerHTML = '<p style="text-align:center;color:#94a3b8;">No transactions found.</p>';
+          return;
+        }
+        document.getElementById('txContent').innerHTML = `
+          <div style="overflow-x:auto;">
+            <table class="tx-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Amount</th>
+                  <th>Currency</th>
+                  <th>Date</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${logs.map(t => `
+                  <tr>
+                    <td>${esc(String(t.tranId || t.id || ''))}</td>
+                    <td>${esc(t.fromName || t.from_name || t.senderName || '')}</td>
+                    <td>${esc(t.toName || t.to_name || t.receiverName || '')}</td>
+                    <td style="font-weight:600;">${Number(t.amount || 0).toLocaleString()}</td>
+                    <td>${esc(t.currencyName || t.currency || 'SYP')}</td>
+                    <td style="white-space:nowrap;">${esc(t.dateTime || t.datetime || t.date || '')}</td>
+                    <td>${esc(t.note || t.description || '')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      } catch (e) {
+        document.getElementById('txContent').innerHTML = '<p style="color:#f87171;">Error: ' + esc(e.message) + '</p>';
+      }
+    }
+
+    // ── Delete ──────────────────────────────────────────────────
+    function showDeleteConfirm(address) {
+      currentDeleteAddress = address;
+      document.getElementById('deleteAddress').textContent = address;
+      document.getElementById('deleteModal').classList.add('active');
+    }
+
+    async function confirmDelete() {
+      if (!currentDeleteAddress) return;
+      const btn = document.getElementById('confirmDeleteBtn');
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+      try {
+        const res = await apiFetch('/admin/api/accounts/' + encodeURIComponent(currentDeleteAddress), { method: 'DELETE' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        closeModal('deleteModal');
+        showToast('Account deleted.');
+        loadAccounts();
+      } catch (e) {
+        showToast('Error: ' + e.message, '#dc2626');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Delete';
+        currentDeleteAddress = null;
+      }
+    }
+
+    // ── Logout ──────────────────────────────────────────────────
+    async function logout() {
+      try {
+        await apiFetch('/admin/api/logout', { method: 'POST' });
+      } catch {}
+      localStorage.removeItem('admin_token');
+      window.location.href = '/admin';
+    }
+  </script>
+</body>
+</html>
