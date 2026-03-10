@@ -155,6 +155,33 @@
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
+      align-items: center;
+    }
+    .action-group {
+      display: inline-flex;
+      align-items: stretch;
+    }
+    .action-group .btn-sm {
+      border-radius: 6px 0 0 6px;
+    }
+    .btn-ext {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-left: none;
+      color: #64748b;
+      border-radius: 0 6px 6px 0;
+      padding: 0 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+    }
+    .btn-ext:hover {
+      background: #1e3a5f;
+      border-color: #2563eb;
+      color: #60a5fa;
     }
     .empty-state {
       text-align: center;
@@ -327,6 +354,22 @@
     </div>
   </div>
 
+  <!-- ── Find Transaction Modal ────────────────────────────────── -->
+  <div class="modal-overlay" id="findTxModal">
+    <div class="modal" style="max-width:620px;">
+      <button class="modal-close" onclick="closeModal('findTxModal')">&times;</button>
+      <h2>Find Transaction</h2>
+      <div style="margin-bottom:16px;display:flex;gap:8px;">
+        <input type="text" id="findTxInput" placeholder="Enter Transaction ID..."
+          style="flex:1;padding:10px 14px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-size:14px;outline:none;"
+          onkeydown="if(event.key==='Enter')searchFindTx()">
+        <button class="btn btn-primary btn-sm" onclick="searchFindTx()" id="findTxBtn" style="padding:10px 18px;font-size:13px;">Search</button>
+        <button class="btn-ext" id="findTxOpenBtn" onclick="openFindTxUrlFromModal()" title="Open in browser" style="border-radius:8px;border:1px solid #334155;padding:0 12px;">&#8599;</button>
+      </div>
+      <div id="findTxContent"></div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -336,6 +379,8 @@
     let currentDeleteAddress = null;
     let pollTimer = null;
     let currentSessionId = null;
+    let apiKey = '';
+    let findTxAddress = null;
 
     // ── Auth helper ─────────────────────────────────────────────
     function authHeaders() {
@@ -355,9 +400,14 @@
     // ── Init ────────────────────────────────────────────────────
     (async () => {
       try {
-        const res = await apiFetch('/admin/api/me');
-        const data = await res.json();
-        document.getElementById('usernameDisplay').textContent = data.username || 'Admin';
+        const [meRes, cfgRes] = await Promise.all([
+          apiFetch('/admin/api/me'),
+          apiFetch('/admin/api/config'),
+        ]);
+        const me = await meRes.json();
+        document.getElementById('usernameDisplay').textContent = me.username || 'Admin';
+        const cfg = await cfgRes.json();
+        apiKey = cfg.apiKey || '';
       } catch {
         window.location.href = '/admin';
         return;
@@ -419,8 +469,18 @@
               <button class="copy-btn" onclick="copyAddress('${esc(a.account_address)}')" title="Copy address">&#128203;</button>
             </div>
             <div class="account-actions">
-              <button class="btn btn-primary btn-sm" onclick="showBalance('${esc(a.account_address)}')">Balance</button>
-              <button class="btn btn-secondary btn-sm" onclick="showTransactions('${esc(a.account_address)}')">Transactions</button>
+              <div class="action-group">
+                <button class="btn btn-primary btn-sm" onclick="showBalance('${esc(a.account_address)}')">Balance</button>
+                <button class="btn-ext" onclick="window.open(apiUrl('balance','${esc(a.account_address)}'),'_blank')" title="Open Balance API in browser">&#8599;</button>
+              </div>
+              <div class="action-group">
+                <button class="btn btn-secondary btn-sm" onclick="showTransactions('${esc(a.account_address)}')">Transactions</button>
+                <button class="btn-ext" onclick="window.open(apiUrl('logs','${esc(a.account_address)}'),'_blank')" title="Open Transactions API in browser">&#8599;</button>
+              </div>
+              <div class="action-group">
+                <button class="btn btn-sm" style="background:#7c3aed;color:#fff;" onclick="showFindTx('${esc(a.account_address)}')">Find TX</button>
+                <button class="btn-ext" onclick="openFindTxUrl('${esc(a.account_address)}')" title="Open Find TX API in browser">&#8599;</button>
+              </div>
               <button class="btn btn-danger btn-sm" onclick="showDeleteConfirm('${esc(a.account_address)}')">Delete</button>
             </div>
           </div>
@@ -543,6 +603,16 @@
           document.getElementById('txContent').innerHTML = '<p style="text-align:center;color:#94a3b8;">No transactions found.</p>';
           return;
         }
+        const fmtFromTo = (t) => {
+          const account = t.userName || t.accountNumber || '';
+          const peer = t.peerUserName || t.peerAccountNumber || '';
+          const isOutgoing = t.tranKind === 2;
+          return { from: isOutgoing ? account : peer, to: isOutgoing ? peer : account };
+        };
+        const fmtDateTime = (t) => {
+          if (t.tranDate && t.tranTime) return t.tranDate + ' ' + t.tranTime;
+          return t.dateTime || t.datetime || t.tranDate || t.tranTime || t.date || '';
+        };
         document.getElementById('txContent').innerHTML = `
           <div style="overflow-x:auto;">
             <table class="tx-table">
@@ -558,17 +628,20 @@
                 </tr>
               </thead>
               <tbody>
-                ${logs.map(t => `
+                ${logs.map(t => {
+                  const { from, to } = fmtFromTo(t);
+                  return `
                   <tr>
                     <td>${esc(String(t.tranId || t.id || ''))}</td>
-                    <td>${esc(t.fromName || t.from_name || t.senderName || '')}</td>
-                    <td>${esc(t.toName || t.to_name || t.receiverName || '')}</td>
+                    <td>${esc(from)}</td>
+                    <td>${esc(to)}</td>
                     <td style="font-weight:600;">${Number(t.amount || 0).toLocaleString()}</td>
                     <td>${esc(t.currencyName || t.currency || 'SYP')}</td>
-                    <td style="white-space:nowrap;">${esc(t.dateTime || t.datetime || t.date || '')}</td>
+                    <td style="white-space:nowrap;">${esc(fmtDateTime(t))}</td>
                     <td>${esc(t.note || t.description || '')}</td>
                   </tr>
-                `).join('')}
+                `;
+                }).join('')}
               </tbody>
             </table>
           </div>`;
@@ -603,6 +676,75 @@
         btn.textContent = 'Delete';
         currentDeleteAddress = null;
       }
+    }
+
+    // ── API URL builder ─────────────────────────────────────────
+    function apiUrl(action, address, extra = {}) {
+      const params = new URLSearchParams({ resource: 'shamcash', action, account_address: address, api_key: apiKey, ...extra });
+      return window.location.origin + '/api/v1?' + params.toString();
+    }
+
+    // ── Find TX ─────────────────────────────────────────────────
+    function showFindTx(address) {
+      findTxAddress = address;
+      document.getElementById('findTxInput').value = '';
+      document.getElementById('findTxContent').innerHTML = '';
+      document.getElementById('findTxModal').classList.add('active');
+      setTimeout(() => document.getElementById('findTxInput').focus(), 50);
+    }
+
+    async function searchFindTx() {
+      if (!findTxAddress) return;
+      const txId = document.getElementById('findTxInput').value.trim();
+      if (!txId) { showToast('Enter a Transaction ID', '#f59e0b'); return; }
+      const btn = document.getElementById('findTxBtn');
+      btn.disabled = true;
+      btn.textContent = 'Searching...';
+      document.getElementById('findTxContent').innerHTML = '<div class="loading">Searching...</div>';
+      try {
+        const res = await apiFetch(
+          '/admin/api/accounts/' + encodeURIComponent(findTxAddress) + '/find-tx?tx=' + encodeURIComponent(txId)
+        );
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        const raw = data.data?.data || data.data;
+        const tx = Array.isArray(raw) ? raw[0] : raw;
+        if (!tx || typeof tx !== 'object' || Object.keys(tx).length === 0) {
+          document.getElementById('findTxContent').innerHTML =
+            '<p style="text-align:center;color:#94a3b8;padding:16px 0;">Transaction not found.</p>';
+        } else {
+          document.getElementById('findTxContent').innerHTML = `
+            <div style="background:#0f172a;border-radius:8px;padding:16px;font-size:13px;">
+              <table style="width:100%;border-collapse:collapse;">
+                ${Object.entries(tx).map(([k, v]) => `
+                  <tr>
+                    <td style="color:#94a3b8;padding:6px 8px;white-space:nowrap;font-weight:500;width:40%;">${esc(k)}</td>
+                    <td style="color:#e2e8f0;padding:6px 8px;word-break:break-all;">${esc(String(v ?? ''))}</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </div>`;
+        }
+      } catch (e) {
+        document.getElementById('findTxContent').innerHTML =
+          '<p style="color:#f87171;padding:8px 0;">Error: ' + esc(e.message) + '</p>';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Search';
+      }
+    }
+
+    function openFindTxUrl(address) {
+      const txId = prompt('Enter Transaction ID to open in browser:');
+      if (!txId) return;
+      window.open(apiUrl('find_tx', address, { tx: txId }), '_blank');
+    }
+
+    function openFindTxUrlFromModal() {
+      if (!findTxAddress) return;
+      const txId = document.getElementById('findTxInput').value.trim();
+      if (!txId) { showToast('Enter a Transaction ID first', '#f59e0b'); return; }
+      window.open(apiUrl('find_tx', findTxAddress, { tx: txId }), '_blank');
     }
 
     // ── Logout ──────────────────────────────────────────────────

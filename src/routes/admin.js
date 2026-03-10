@@ -407,6 +407,26 @@ function setupRoutes(app) {
     }
   });
 
+  // ── Find Transaction by ID ───────────────────────────────────────────────
+  app.get('/admin/api/accounts/:address/find-tx', requireAdmin, async (req, res) => {
+    try {
+      const { tx } = req.query;
+      if (!tx) return res.status(400).json({ success: false, error: 'tx parameter is required.' });
+      const creds = await store.getAccountCredentials(req.params.address);
+      if (!creds) return res.status(404).json({ error: 'Account not found' });
+      const clientCreds = buildCredsForClient(creds);
+      const data = await shamcashClient.transactionById(clientCreds, tx);
+      res.json({ success: true, data });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message });
+    }
+  });
+
+  // ── Config (returns API_KEY for dashboard URL builder) ──────────────────
+  app.get('/admin/api/config', requireAdmin, (req, res) => {
+    res.json({ apiKey: process.env.API_KEY || '' });
+  });
+
   // ── Soft Delete Account ──────────────────────────────────────────────────
   app.delete('/admin/api/accounts/:address', requireAdmin, async (req, res) => {
     try {
