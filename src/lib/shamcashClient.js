@@ -15,6 +15,17 @@
  */
 
 const crypto = require('./crypto');
+const { fetch: undiciFetch, ProxyAgent } = require('undici');
+
+// ── Proxies (comma-separated in SHAMCASH_PROXY; tried after direct fails) ────
+const PROXIES = (process.env.SHAMCASH_PROXY || '')
+  .split(',')
+  .map((p) => p.trim())
+  .filter(Boolean);
+
+if (PROXIES.length > 0) {
+  console.log(`[proxy] ${PROXIES.length} proxy(ies) configured for ShamCash API fallback`);
+}
 
 // ── Base URLs (app has three: primary + two failovers + bank + payment) ──────
 const BASES = {
@@ -67,21 +78,63 @@ const DEVICE_TOKEN = process.env.DEVICE_TOKEN || 'fakeDeviceToken_' + Math.rando
 
 // ── Core HTTP ─────────────────────────────────────────────────────────────────
 
+function isNetworkError(e) {
+  if (!e) return false;
+  const msg = (e.message || '').toLowerCase();
+  if (msg.includes('fetch failed') || msg.includes('econnrefused') || msg.includes('econnreset') ||
+      msg.includes('etimedout') || msg.includes('enotfound') || msg.includes('network')) return true;
+  if (e.cause && isNetworkError(e.cause)) return true;
+  return false;
+}
+
 /**
- * rawPost(url, body, extraHeaders) — one POST attempt, no failover.
+ * rawPost(url, body, extraHeaders, proxyUrl?) — one POST attempt.
+ * proxyUrl: optional proxy (e.g. http://user:pass@host:port). Uses undici ProxyAgent when set.
  * Returns { ok, status, data }.
  */
-async function rawPost(url, body, extraHeaders = {}) {
+async function rawPost(url, body, extraHeaders = {}, proxyUrl = null) {
   const headers = { ...BASE_HEADERS, ...extraHeaders };
-  const res = await fetch(url, {
+  const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+  const opts = {
     method: 'POST',
     headers,
-    body: typeof body === 'string' ? body : JSON.stringify(body),
-  });
+    body: bodyStr,
+  };
+  if (proxyUrl) {
+    opts.dispatcher = new ProxyAgent(proxyUrl);
+  }
+  const res = await undiciFetch(url, opts);
   const text = await res.text();
   let data;
   try { data = text ? JSON.parse(text) : null; } catch { data = { _raw: text }; }
   return { ok: res.ok, status: res.status, data };
+}
+
+/**
+ * rawPostWithRetry(url, body, extraHeaders) — tries direct first, then each proxy on network error.
+ */
+async function rawPostWithRetry(url, body, extraHeaders = {}) {
+  // 1. Try direct
+  try {
+    return await rawPost(url, body, extraHeaders, null);
+  } catch (e) {
+    if (!isNetworkError(e) || PROXIES.length === 0) throw e;
+    console.warn(`[direct] ${url} network error: ${e.message}`);
+  }
+
+  // 2. Try each proxy
+  let lastErr;
+  for (const proxy of PROXIES) {
+    try {
+      const proxyMask = proxy.replace(/:[^:@]+@/, ':****@');
+      console.log(`[proxy] Trying ${proxyMask}`);
+      return await rawPost(url, body, extraHeaders, proxy);
+    } catch (e) {
+      lastErr = e;
+      console.warn(`[proxy] ${proxy.replace(/:[^:@]+@/, ':****@')} failed: ${e.message}`);
+    }
+  }
+  throw lastErr;
 }
 
 /**
@@ -100,7 +153,7 @@ async function post(path, body = {}, extraHeaders = {}, base = BASES.primary) {
     try {
       const isEncrypted = body && typeof body.encData === 'string';
       console.log(`[POST] ${url} | body=${isEncrypted ? 'encrypted' : 'plain'} | auth=${extraHeaders.Authorization ? extraHeaders.Authorization.substring(0, 25) + '…' : 'none'}`);
-      const { ok, status, data } = await rawPost(url, body, extraHeaders);
+      const { ok, status, data } = await rawPostWithRetry(url, body, extraHeaders);
       if (ok) return data;
       // Log full details on 4xx for debugging
       if (status >= 400 && status < 500) {
@@ -132,7 +185,7 @@ async function bankPost(path, body = {}, extraHeaders = {}) {
   const url = `${BASES.bank}/${path}`;
   const isEncrypted = body && typeof body.encData === 'string';
   console.log(`[POST bank] ${url} | body=${isEncrypted ? 'encrypted' : 'plain'}`);
-  const { ok, status, data } = await rawPost(url, body, extraHeaders);
+  const { ok, status, data } = await rawPostWithRetry(url, body, extraHeaders);
   if (!ok) {
     console.error(`[${status}] ${url} → ${JSON.stringify(data)}`);
     const e = new Error(data?.message || `HTTP ${status}`); e.status = status; e.data = data; throw e;
