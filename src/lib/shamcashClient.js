@@ -43,6 +43,15 @@ const PROXIES_RAW = (process.env.SHAMCASH_PROXY || '')
 const PROXIES = PROXIES_RAW.map((p) => encodeProxyUrl(p));
 
 if (PROXIES_RAW.length > 0) {
+  PROXIES_RAW.forEach((p, i) => {
+    const hasAt = p.includes('@');
+    const masked = hasAt ? p.replace(/:[^:@]+@/, ':****@') : p;
+    console.log(`[proxy] #${i} raw=${masked} (len=${p.length}, has@=${hasAt})`);
+  });
+  PROXIES.forEach((p, i) => {
+    const masked = p.replace(/:[^:@]+@/, ':****@');
+    console.log(`[proxy] #${i} encoded=${masked}`);
+  });
   console.log(`[proxy] ${PROXIES_RAW.length} proxy(ies) configured for ShamCash API fallback`);
   if (getProxyOnly()) console.log('[proxy] Proxy-only mode: skipping direct connection');
 }
