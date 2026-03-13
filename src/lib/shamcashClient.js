@@ -16,15 +16,35 @@
 
 const crypto = require('./crypto');
 const { fetch: undiciFetch, ProxyAgent } = require('undici');
+const { getProxyOnly } = require('./proxyConfig');
+
+/**
+ * Encode userinfo (user:password) in proxy URL so special chars (e.g. ;) work.
+ * Format: http://user:pass@host:port → http://encode(user):encode(pass)@host:port
+ */
+function encodeProxyUrl(proxy) {
+  const match = proxy.match(/^(https?:\/\/)([^@\/]+)@(.+)$/);
+  if (!match) return proxy;
+  const [, scheme, userinfo, hostPart] = match;
+  const parts = userinfo.split(':');
+  if (parts.length < 2) return proxy;
+  const password = parts.pop();
+  const username = parts.join(':');
+  const encoded = scheme + encodeURIComponent(username) + ':' + encodeURIComponent(password) + '@' + hostPart;
+  return encoded;
+}
 
 // ── Proxies (comma-separated in SHAMCASH_PROXY; tried after direct fails) ────
-const PROXIES = (process.env.SHAMCASH_PROXY || '')
+const PROXIES_RAW = (process.env.SHAMCASH_PROXY || '')
   .split(',')
   .map((p) => p.trim())
   .filter(Boolean);
 
-if (PROXIES.length > 0) {
-  console.log(`[proxy] ${PROXIES.length} proxy(ies) configured for ShamCash API fallback`);
+const PROXIES = PROXIES_RAW.map((p) => encodeProxyUrl(p));
+
+if (PROXIES_RAW.length > 0) {
+  console.log(`[proxy] ${PROXIES_RAW.length} proxy(ies) configured for ShamCash API fallback`);
+  if (getProxyOnly()) console.log('[proxy] Proxy-only mode: skipping direct connection');
 }
 
 // ── Base URLs (app has three: primary + two failovers + bank + payment) ──────
@@ -82,7 +102,8 @@ function isNetworkError(e) {
   if (!e) return false;
   const msg = (e.message || '').toLowerCase();
   if (msg.includes('fetch failed') || msg.includes('econnrefused') || msg.includes('econnreset') ||
-      msg.includes('etimedout') || msg.includes('enotfound') || msg.includes('network')) return true;
+      msg.includes('etimedout') || msg.includes('enotfound') || msg.includes('network') ||
+      msg.includes('invalid url')) return true;
   if (e.cause && isNetworkError(e.cause)) return true;
   return false;
 }
@@ -111,15 +132,21 @@ async function rawPost(url, body, extraHeaders = {}, proxyUrl = null) {
 }
 
 /**
- * rawPostWithRetry(url, body, extraHeaders) — tries direct first, then each proxy on network error.
+ * rawPostWithRetry(url, body, extraHeaders) — tries direct first (unless proxy-only), then each proxy on network error.
  */
 async function rawPostWithRetry(url, body, extraHeaders = {}) {
-  // 1. Try direct
-  try {
-    return await rawPost(url, body, extraHeaders, null);
-  } catch (e) {
-    if (!isNetworkError(e) || PROXIES.length === 0) throw e;
-    console.warn(`[direct] ${url} network error: ${e.message}`);
+  const proxyOnly = getProxyOnly();
+
+  // 1. Try direct (skip if proxy-only mode and we have proxies)
+  if (!proxyOnly || PROXIES.length === 0) {
+    try {
+      return await rawPost(url, body, extraHeaders, null);
+    } catch (e) {
+      if (!isNetworkError(e) || PROXIES.length === 0) throw e;
+      console.warn(`[direct] ${url} network error: ${e.message}`);
+    }
+  } else {
+    console.log(`[proxy] Proxy-only mode: skipping direct for ${url}`);
   }
 
   // 2. Try each proxy
@@ -134,7 +161,7 @@ async function rawPostWithRetry(url, body, extraHeaders = {}) {
       console.warn(`[proxy] ${proxy.replace(/:[^:@]+@/, ':****@')} failed: ${e.message}`);
     }
   }
-  throw lastErr;
+  throw lastErr || new Error('Proxy-only mode but no proxies configured');
 }
 
 /**

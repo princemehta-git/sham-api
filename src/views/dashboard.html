@@ -41,6 +41,19 @@
     .btn-sm { padding: 6px 12px; font-size: 12px; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    .proxy-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+    .proxy-toggle input { display: none; }
+    .toggle-slider {
+      width: 36px; height: 20px; background: #334155; border-radius: 10px; position: relative;
+      transition: background 0.2s;
+    }
+    .toggle-slider::after {
+      content: ''; position: absolute; width: 16px; height: 16px; background: #e2e8f0;
+      border-radius: 50%; top: 2px; left: 2px; transition: transform 0.2s;
+    }
+    .proxy-toggle input:checked + .toggle-slider { background: #3b82f6; }
+    .proxy-toggle input:checked + .toggle-slider::after { transform: translateX(16px); }
+
     .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 
     .tabs {
@@ -281,7 +294,12 @@
 <body>
   <div class="header">
     <h1>ShamCash Admin</h1>
-    <div class="user-info">
+    <div class="user-info" style="display:flex;align-items:center;gap:16px;">
+      <label class="proxy-toggle" title="When ON: use proxy only (skip direct). When OFF: try direct first, then proxy.">
+        <span style="font-size:13px;color:#94a3b8;">Proxy only</span>
+        <input type="checkbox" id="proxyOnlyCheck" onchange="toggleProxyOnly(this.checked)">
+        <span class="toggle-slider"></span>
+      </label>
       <span id="usernameDisplay"></span>
       <button class="btn btn-secondary btn-sm" onclick="logout()">Logout</button>
     </div>
@@ -413,6 +431,8 @@
         document.getElementById('usernameDisplay').textContent = me.username || 'Admin';
         const cfg = await cfgRes.json();
         apiKey = cfg.apiKey || '';
+        const proxyCheck = document.getElementById('proxyOnlyCheck');
+        if (proxyCheck) proxyCheck.checked = cfg.proxyOnly === true;
       } catch {
         window.location.href = '/admin';
         return;
@@ -762,6 +782,22 @@
       const txId = document.getElementById('findTxInput').value.trim();
       if (!txId) { showToast('Enter a Transaction ID first', '#f59e0b'); return; }
       window.open(apiUrl('find_tx', findTxAddress, { tx: txId }), '_blank');
+    }
+
+    // ── Proxy-only toggle ───────────────────────────────────────
+    async function toggleProxyOnly(checked) {
+      try {
+        const res = await apiFetch('/admin/api/settings', {
+          method: 'POST',
+          body: JSON.stringify({ proxyOnly: checked }),
+        });
+        const data = await res.json();
+        if (data.success) showToast(checked ? 'Proxy-only mode ON' : 'Proxy-only mode OFF');
+      } catch (e) {
+        showToast('Failed to update: ' + e.message, '#dc2626');
+        const proxyCheck = document.getElementById('proxyOnlyCheck');
+        if (proxyCheck) proxyCheck.checked = !checked;
+      }
     }
 
     // ── Logout ──────────────────────────────────────────────────

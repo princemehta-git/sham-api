@@ -10,6 +10,7 @@ const device = require('../lib/device');
 const store = require('../lib/store');
 const { CURRENCY_ID_MAP } = require('../lib/currency');
 const shamcashClient = require('../lib/shamcashClient');
+const proxyConfig = require('../lib/proxyConfig');
 const { generateToken, requireAdmin } = require('../middleware/adminAuth');
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
@@ -446,9 +447,22 @@ function setupRoutes(app) {
     }
   });
 
-  // ── Config (returns API_KEY for dashboard URL builder) ──────────────────
+  // ── Config (returns API_KEY, proxyOnly for dashboard) ────────────────────
   app.get('/admin/api/config', requireAdmin, (req, res) => {
-    res.json({ apiKey: process.env.API_KEY || '' });
+    res.json({
+      apiKey: process.env.API_KEY || '',
+      proxyOnly: proxyConfig.getProxyOnly(),
+    });
+  });
+
+  // ── Settings (proxy-only toggle; runtime, resets on restart) ────────────
+  app.post('/admin/api/settings', requireAdmin, (req, res) => {
+    const { proxyOnly } = req.body || {};
+    if (typeof proxyOnly !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'proxyOnly must be true or false' });
+    }
+    proxyConfig.setProxyOnly(proxyOnly);
+    res.json({ success: true, proxyOnly: proxyConfig.getProxyOnly() });
   });
 
   // ── Soft Delete Account ──────────────────────────────────────────────────
